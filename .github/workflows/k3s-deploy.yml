@@ -53,8 +53,7 @@ jobs:
             scp -o StrictHostKeyChecking=no -r ${{ github.workspace }}/manifests ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }}:~/ctfd/
             
             # SSH into EC2 and deploy
-            ssh -o StrictHostKeyChecking=no ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }} << 'EOF'
-            
+            ssh -o StrictHostKeyChecking=no ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }} << EOF
             echo "🔹 Applying manifests…"
             sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} apply -f ~/ctfd/manifests/
 
@@ -62,14 +61,14 @@ jobs:
             sleep 10
 
             echo "🔹 Updating deployment image…"
-            if kubectl --kubeconfig=${K3S_KUBECONFIG_PATH} get deployment ctfd; then
-                sudo kubectl --kubeconfig=${K3S_KUBECONFIG_PATH} set image deployment/ctfd \
-                    ctfd=${DOCKERHUB_USERNAME}/ctfd:latest --record
-                
+            if sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} get deployment ctfd; then
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} set image deployment/ctfd \
+                    ctfd=${{ secrets.DOCKERHUB_USERNAME }}/ctfd:latest --record
+
                 echo "🔹 Restarting deployment for rollout…"
-                sudo kubectl --kubeconfig=${K3S_KUBECONFIG_PATH} rollout restart deployment/ctfd
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout restart deployment/ctfd
                 echo "🔹 Checking rollout status…"
-                sudo kubectl --kubeconfig=${K3S_KUBECONFIG_PATH} rollout status deployment/ctfd
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout status deployment/ctfd
             fi
             EOF
-
+            
