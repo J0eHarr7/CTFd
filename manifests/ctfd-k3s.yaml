@@ -168,6 +168,13 @@ spec:
       labels:
         app: ctfd
     spec:
+      initContainers:
+        - name: fix-permissions
+          image: busybox
+          command: ['sh', '-c', 'chown -R 1001:1001 /var/lib/ctfd/uploads']
+          volumeMounts:
+            - name: uploads
+              mountPath: /var/lib/ctfd/uploads
       containers:
         - name: ctfd
           image: joebatal/ctfd:latest
