@@ -170,7 +170,7 @@ spec:
     spec:
       containers:
         - name: ctfd
-          image: ctfd/ctfd:4.4.0
+          image: ctfd/ctfd:latest
           ports:
             - containerPort: 8000
           env:
