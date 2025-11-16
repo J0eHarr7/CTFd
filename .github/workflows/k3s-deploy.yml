@@ -2,7 +2,7 @@ name: Build & Deploy CTFd to K3s
 
 on:
   push:
-    branches: ["main"]   # change if needed
+    branches: ["master"]   # change if needed
 
 jobs:
   deploy:
