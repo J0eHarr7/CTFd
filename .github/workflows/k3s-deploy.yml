@@ -1,0 +1,61 @@
+name: Build & Deploy CTFd to K3s
+
+on:
+  push:
+    branches: ["main"]   # change if needed
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ------------------------
+      # 1. CHECKOUT CODE
+      # ------------------------
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      # ------------------------
+      # 2. Build & Push Docker Image
+      # ------------------------
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Image
+        uses: docker/build-push-action@v3
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/ctfd:latest
+
+      # ------------------------
+      # 3. SSH into EC2 + Deploy on K3s
+      # ------------------------
+      - name: Install SSH Key
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.K3S_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to K3s
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }} << 'EOF'
+
+          echo "🔹 Updating deployment image…"
+
+          kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} set image deployment/ctfd \
+            ctfd=${{ secrets.DOCKERHUB_USERNAME }}/ctfd:latest --record
+
+          echo "🔹 Applying manifests…"
+          kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} apply -f ~/ctfd/manifests/
+
+          echo "🔹 Restarting deployment for rollout…"
+          kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout restart deployment/ctfd
+
+          echo "🔹 Checking rollout status…"
+          kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout status deployment/ctfd
+          EOF

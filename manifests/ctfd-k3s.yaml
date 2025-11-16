@@ -1,0 +1,256 @@
+# Namespace -----------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ctfd
+---
+# Secrets -------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ctfd-secrets
+  namespace: ctfd
+type: Opaque
+stringData:
+  POSTGRES_USER: ctfd
+  POSTGRES_PASSWORD: ctfd_password_change_me
+  POSTGRES_DB: ctfd
+  REDIS_PASSWORD: redis_password_change_me
+  CTF_ADMIN_EMAIL: admin@ctfd.local
+  CTF_ADMIN_PASSWORD: admin_password_change_me
+---
+# PVC for PostgreSQL -------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pgdata-claim
+  namespace: ctfd
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+---
+# PostgreSQL StatefulSet ----------------------------------------
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: ctfd
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: local-path
+---
+# PostgreSQL Service --------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: ctfd
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgres
+  clusterIP: None
+---
+# Redis Deployment ----------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: ctfd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7
+          args: ["redis-server", "--requirepass", "$(REDIS_PASSWORD)"]
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: REDIS_PASSWORD
+          ports:
+            - containerPort: 6379
+---
+# Redis Service --------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: ctfd
+spec:
+  ports:
+    - port: 6379
+      targetPort: 6379
+  selector:
+    app: redis
+---
+# CTFd uploads PVC ----------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ctfd-uploads-claim
+  namespace: ctfd
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: local-path
+---
+# CTFd Deployment ------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ctfd
+  template:
+    metadata:
+      labels:
+        app: ctfd
+    spec:
+      containers:
+        - name: ctfd
+          image: ctfd/ctfd:4.4.0
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgresql://$(POSTGRES_USER):$(POSTGRES_PASSWORD)@postgres:5432/$(POSTGRES_DB)"
+            - name: REDIS_URL
+              value: "redis://:$(REDIS_PASSWORD)@redis:6379/0"
+            - name: FLASK_ENV
+              value: production
+            - name: CTF_ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: CTF_ADMIN_EMAIL
+            - name: CTF_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ctfd-secrets
+                  key: CTF_ADMIN_PASSWORD
+          volumeMounts:
+            - name: uploads
+              mountPath: /var/lib/ctfd/uploads
+      volumes:
+        - name: uploads
+          persistentVolumeClaim:
+            claimName: ctfd-uploads-claim
+---
+# CTFd Service ----------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: ctfd
+  namespace: ctfd
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8000
+  selector:
+    app: ctfd
+---
+# K3s Ingress (Traefik) ------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ctfd-ingress
+  namespace: ctfd
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+    - host: ctfd.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ctfd
+                port:
+                  number: 80
+---
+# Horizontal Pod Autoscaler ---------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ctfd-hpa
+  namespace: ctfd
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ctfd
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 50
+---
