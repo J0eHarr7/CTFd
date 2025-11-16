@@ -44,8 +44,6 @@ jobs:
       - name: Deploy to K3s
         run: |
             # Copy manifests to EC2
-             # Debug
-            ls -la ${{ github.workspace }}/CTFd/manifests
 
             # Copy to EC2
             scp -o StrictHostKeyChecking=no -r ${{ github.workspace }}/CTFd/manifests ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }}:~/ctfd/
