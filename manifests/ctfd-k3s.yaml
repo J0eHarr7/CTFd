@@ -171,6 +171,7 @@ spec:
       containers:
         - name: ctfd
           image: joebatal/ctfd:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8000
           env:
