@@ -46,6 +46,9 @@ jobs:
             # Copy manifests to EC2
             ls -la ${{ github.workspace }}/manifests
 
+             # Make sure the destination folder exists on EC2
+            ssh -o StrictHostKeyChecking=no ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }} "mkdir -p ~/ctfd"
+
             # Copy to EC2
             scp -o StrictHostKeyChecking=no -r ${{ github.workspace }}/manifests ${{ secrets.K3S_SSH_USER }}@${{ secrets.K3S_SSH_HOST }}:~/ctfd/
             
