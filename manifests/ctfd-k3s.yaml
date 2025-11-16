@@ -201,6 +201,8 @@ spec:
               value: "redis://:$(REDIS_PASSWORD)@redis:6379/0"
             - name: FLASK_ENV
               value: production
+            - name: REVERSE_PROXY
+              value: "true"
             - name: CTF_ADMIN_EMAIL
               valueFrom:
                 secretKeyRef:
