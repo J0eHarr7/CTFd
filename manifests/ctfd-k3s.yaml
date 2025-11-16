@@ -170,7 +170,7 @@ spec:
     spec:
       containers:
         - name: ctfd
-          image: ctfd/ctfd:latest
+          image: joebatal/ctfd:latest
           ports:
             - containerPort: 8000
           env:
