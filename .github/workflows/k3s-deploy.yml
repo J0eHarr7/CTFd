@@ -61,14 +61,14 @@ jobs:
             sleep 10
 
             echo "🔹 Updating deployment image…"
-            if sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} get deployment ctfd; then
-                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} set image deployment/ctfd \
+            if sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} -n ctfd get deployment ctfd; then
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} -n ctfd set image deployment/ctfd \
                     ctfd=${{ secrets.DOCKERHUB_USERNAME }}/ctfd:latest --record
 
                 echo "🔹 Restarting deployment for rollout…"
-                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout restart deployment/ctfd
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} -n ctfd rollout restart deployment/ctfd
                 echo "🔹 Checking rollout status…"
-                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} rollout status deployment/ctfd
+                sudo kubectl --kubeconfig=${{ secrets.K3S_KUBECONFIG_PATH }} -n ctfd rollout status deployment/ctfd
             fi
             EOF
-            
+
